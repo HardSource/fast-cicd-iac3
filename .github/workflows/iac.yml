@@ -50,7 +50,7 @@ jobs:
       - name: Run Tfsec
         uses: aquasecurity/tfsec-action@v1.0.0
         with:
-          additional_args: --exclude google-compute-no-public-ip, google-compute-no-project-wide-ssh-keys
+          additional_args: --exclude google-compute-no-public-ip,google-compute-no-project-wide-ssh-keys
 
   terraform:
     name: Terraform
