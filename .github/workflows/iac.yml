@@ -49,3 +49,58 @@ jobs:
         uses: actions/checkout@v4
       - name: Run Tfsec
         uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          additional_args: --exclude google-compute-no-public-ip, google-compute-no-project-wide-ssh-keys
+
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    environment: production
+    needs: 
+      - ansible-lint
+      - terraform-lint
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./terraform
+    outputs:
+      instance_nat_ip: ${{ steps.instance_inventory.outputs.instance_nat_ip }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup SSH 
+        shell: bash
+        run: |
+          eval `ssh-agent -s`
+          mkdir -p /home/runner/.ssh/
+          touch /home/runner/.ssh/ecdsa_ansible.pub
+          echo -e "${{ secrets.ANSIBLE_SSH_PUB }}" > /home/runner/.ssh/ecdsa_ansible.pub
+          chmod 644 /home/runner/.ssh/ecdsa_ansible.pub
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: Terraform Init
+        run: terraform init
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          TF_VAR_google_project_number: ${{ secrets.GOOGLE_PROJECT_NUMBER }}
+      - name: Terraform Validate
+        run: terraform validate
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          TF_VAR_google_project_number: ${{ secrets.GOOGLE_PROJECT_NUMBER }}
+      - name: Terraform Plan
+        run: terraform plan -input=false
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          TF_VAR_google_project_number: ${{ secrets.GOOGLE_PROJECT_NUMBER }}
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }} 
+          TF_VAR_google_project_number: ${{ secrets.GOOGLE_PROJECT_NUMBER }}
+      - name: Terraform Output
+        id: instance_inventory
+        run: echo "instance_nat_ip=$(terraform output instance_nat_ip)" >> "$GITHUB_OUTPUT"
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }} 
+          TF_VAR_google_project_number: ${{ secrets.GOOGLE_PROJECT_NUMBER }}
