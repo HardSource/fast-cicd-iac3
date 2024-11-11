@@ -104,3 +104,36 @@ jobs:
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }} 
           TF_VAR_google_project_number: ${{ secrets.GOOGLE_PROJECT_NUMBER }}
+
+  ansible:
+    name: Ansible
+    runs-on: ubuntu-latest
+    environment: production
+    needs: 
+      - terraform
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./ansible
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup SSH 
+        shell: bash
+        run: |
+          eval `ssh-agent -s`
+          mkdir -p /home/runner/.ssh/
+          touch /home/runner/.ssh/ecdsa_ansible
+          echo -e "${{ secrets.ANSIBLE_SSH }}" > /home/runner/.ssh/ecdsa_ansible
+          chmod 700 /home/runner/.ssh/ecdsa_ansible
+      - name: Create Ansible Inventory
+        run: |
+          echo "lab-fast-ci-cd ansible_port=22 ansible_host=${INSTANCE_NAT_IP} ansible_user=ansible ansible_ssh_private_key_file=/home/runner/.ssh/ecdsa_ansible" >> ./inventory.yml
+          cat ./inventory.yml
+        env:
+          INSTANCE_NAT_IP: ${{ needs.terraform.outputs.instance_nat_ip }}
+      - name: Run Ansible Playbook 
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
+        run: |
+          ansible-playbook -i ./inventory.yml main.yml
